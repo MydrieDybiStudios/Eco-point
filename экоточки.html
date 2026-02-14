@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>StoryMap Cinematic Pro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+:root{
+  --bg:#0b0b0f;
+  --panel:#111;
+  --accent:#00c8ff;
+  --accent2:#ff0055;
+  --text:#fff;
+  --muted:#aaa;
+}
+*{box-sizing:border-box}
+html,body{
+  margin:0;height:100%;
+  background:var(--bg);
+  font-family:Inter,Arial,sans-serif;
+  color:var(--text);
+  overflow:hidden;
+}
+#app{display:flex;height:100vh}
+
+/* ===== SLIDES PANEL ===== */
+#slides{
+  width:38%;
+  background:linear-gradient(180deg,#0e0e14,#0a0a0f);
+  overflow-y:auto;
+  scroll-behavior:smooth;
+  border-right:1px solid #222;
+}
+.slide{
+  padding:28px 26px;
+  border-bottom:1px solid #1c1c24;
+  opacity:.35;
+  transition:.35s;
+}
+.slide.active{
+  opacity:1;
+  background:linear-gradient(180deg,#14141c,#0f0f16);
+  box-shadow:inset 0 0 0 1px #1f1f2b;
+}
+.slide img{
+  width:100%;
+  border-radius:14px;
+  margin-bottom:12px;
+}
+.slide h2{
+  margin:0 0 10px;
+  font-size:22px;
+  letter-spacing:.3px;
+}
+.slide .text{
+  font-size:14px;
+  line-height:1.65;
+  color:#ddd;
+}
+
+/* ===== MAP ===== */
+#map{flex:1;position:relative}
+
+/* ===== TOPBAR ===== */
+#topbar{
+  position:fixed;
+  top:12px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:9999;
+  display:flex;
+  gap:10px;
+}
+.btn{
+  background:#14141c;
+  color:#fff;
+  border:1px solid #2a2a38;
+  padding:8px 14px;
+  border-radius:10px;
+  font-size:12px;
+  cursor:pointer;
+  transition:.2s;
+}
+.btn:hover{background:#1c1c28}
+.btn.active{
+  background:var(--accent);
+  color:#000;
+  border-color:var(--accent);
+}
+
+/* ===== PROGRESS BAR ===== */
+#progress{
+  position:fixed;
+  top:0;left:0;
+  height:3px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  width:0%;
+  z-index:9999;
+}
+
+/* ===== TIMELINE NETFLIX STYLE ===== */
+#timeline{
+  position:fixed;
+  bottom:0;left:0;
+  width:100%;
+  height:64px;
+  background:linear-gradient(180deg,transparent,#000c,#000);
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:0 14px;
+  z-index:9999;
+}
+.t-item{
+  flex:1;
+  height:4px;
+  background:#333;
+  border-radius:3px;
+  cursor:pointer;
+  transition:.2s;
+}
+.t-item.active{
+  height:8px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+}
+
+/* ===== PREVIEW POPUP ===== */
+#preview{
+  position:fixed;
+  bottom:70px;
+  left:50%;
+  transform:translateX(-50%);
+  background:#000e;
+  border:1px solid #222;
+  border-radius:12px;
+  padding:12px;
+  max-width:420px;
+  display:none;
+  z-index:9999;
+}
+#preview img{width:100%;border-radius:10px;margin-bottom:8px}
+
+/* ===== NAV ARROWS ===== */
+#navArrows{
+  position:absolute;
+  bottom:80px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:1000;
+  display:flex;
+  gap:12px;
+}
+#navArrows button{
+  background:#000c;
+  color:#fff;
+  border:1px solid #333;
+  padding:12px 18px;
+  border-radius:50px;
+  font-size:18px;
+  cursor:pointer;
+  transition:.2s;
+}
+#navArrows button:hover{background:#111}
+
+/* ===== MINI MAP ===== */
+#miniMap{
+  position:absolute;
+  top:14px;
+  right:14px;
+  width:200px;
+  height:120px;
+  border-radius:12px;
+  overflow:hidden;
+  border:1px solid #222;
+  z-index:800;
+}
+
+/* ===== HINT ===== */
+#hint{
+  position:absolute;
+  bottom:150px;
+  right:12px;
+  background:#000a;
+  color:#fff;
+  padding:10px 14px;
+  border-radius:12px;
+  font-size:12px;
+  z-index:999;
+}
+
+@media(max-width:900px){
+  #app{flex-direction:column}
+  #slides{width:100%;height:50%}
+  #map{height:50%}
+  #miniMap{display:none}
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<div id="topbar">
+  <button class="btn active" id="modeStory">Story</button>
+  <button class="btn" id="modeFree">Free</button>
+  <button class="btn" id="modeManual">Manual</button>
+  <button class="btn" id="modePlay">Play</button>
+</div>
+
+<div id="preview"></div>
+
+<div id="timeline"></div>
+
+<div id="app">
+  <div id="slides"></div>
+  <div id="map">
+    <div id="miniMap"></div>
+    <div id="hint">← → — слайды<br>WASD / ↑↓ — карта<br>Space — Play</div>
+    <div id="navArrows">
+      <button onclick="goSlide(current-1,true)">◀</button>
+      <button onclick="goSlide(current+1,true)">▶</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// ===================== CONFIG =====================
+const STORY_URL =
+"https://uploads.knightlab.com/storymapjs/25f0c22f835942b09e1063a6cdc3b129/ekotochki-na-karte-nefteiuganskogo-raiona/published.json";
+
+// если хочешь офлайн — поменяй на:
+// const STORY_URL = "story.json";
+
+// ===================== GLOBALS =====================
+let slides=[], STORY=null;
+let map, miniMap, markers=[], routeLine;
+let current=0;
+let MODE="story";
+let PLAY=false;
+let keys={};
+
+// ===================== UTILS =====================
+function normalize(u){
+  return u?.startsWith("//") ? "https:"+u : u;
+}
+
+// ===================== LOAD STORY =====================
+async function loadStory(){
+  STORY = await fetch(STORY_URL).then(r=>r.json());
+  slides = STORY.storymap.slides;
+  initMap();
+  renderSlides();
+  buildTimeline();
+  enableScrollSync();
+  goSlide(0,false);
+}
+loadStory();
+
+// ===================== MAP =====================
+function initMap(){
+  map=L.map("map",{zoomControl:true,inertia:true}).setView([60,72],5);
+
+  // ONLINE MAP (замени на офлайн tiles/{z}/{x}/{y}.jpg при необходимости)
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+    maxZoom:18
+  }).addTo(map);
+
+  miniMap=L.map("miniMap",{zoomControl:false,attributionControl:false})
+    .setView([60,72],3);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+    maxZoom:18
+  }).addTo(miniMap);
+}
+
+// ===================== SLIDES RENDER =====================
+function renderSlides(){
+  const container=document.getElementById("slides");
+  container.innerHTML="";
+  markers.forEach(m=>map.removeLayer(m));
+  markers=[];
+  const coords=[];
+
+  slides.forEach((s,i)=>{
+    const el=document.createElement("div");
+    el.className="slide";
+    el.dataset.index=i;
+
+    let img=s.media?.url?`<img src="${normalize(s.media.url)}">`:"";
+
+    el.innerHTML=`
+      ${img}
+      <h2>${s.text?.headline||""}</h2>
+      <div class="text">${s.text?.text||""}</div>
+    `;
+
+    el.onclick=()=>goSlide(i,true);
+    container.appendChild(el);
+
+    if(s.location?.lat){
+      coords.push([s.location.lat,s.location.lon]);
+
+      let icon=null;
+      if(s.location.use_custom_marker && s.location.icon){
+        icon=L.icon({
+          iconUrl:normalize(s.location.icon),
+          iconSize:[38,38]
+        });
+      }
+
+      const m=L.marker([s.location.lat,s.location.lon],icon?{icon}:{})
+        .addTo(map)
+        .bindPopup(s.text?.headline||"");
+
+      markers.push(m);
+    }
+  });
+
+  if(coords.length>1){
+    routeLine=L.polyline(coords,{
+      color:"#00c8ff",
+      weight:3,
+      opacity:.7
+    }).addTo(map);
+  }
+}
+
+// ===================== TIMELINE =====================
+function buildTimeline(){
+  const t=document.getElementById("timeline");
+  t.innerHTML="";
+  slides.forEach((s,i)=>{
+    const item=document.createElement("div");
+    item.className="t-item";
+    item.onmouseenter=()=>showPreview(i);
+    item.onmouseleave=hidePreview;
+    item.onclick=()=>goSlide(i,true);
+    t.appendChild(item);
+  });
+}
+
+function updateTimeline(){
+  document.querySelectorAll(".t-item").forEach((el,i)=>{
+    el.classList.toggle("active",i===current);
+  });
+}
+
+// ===================== PREVIEW =====================
+function showPreview(i){
+  const p=document.getElementById("preview");
+  const s=slides[i];
+  let img=s.media?.url?`<img src="${normalize(s.media.url)}">`:"";
+  p.innerHTML=`${img}<b>${s.text?.headline||""}</b>`;
+  p.style.display="block";
+}
+function hidePreview(){
+  document.getElementById("preview").style.display="none";
+}
+
+// ===================== SLIDE CONTROL =====================
+function goSlide(i,byUser){
+  if(i<0||i>=slides.length) return;
+  current=i;
+
+  document.querySelectorAll(".slide").forEach((el,idx)=>{
+    el.classList.toggle("active",idx===i);
+  });
+
+  const s=slides[i];
+
+  if(s.location?.lat && (MODE==="story" || byUser || PLAY)){
+    map.flyTo([s.location.lat,s.location.lon],s.location.zoom||11,{
+      duration:1.3
+    });
+    miniMap.setView([s.location.lat,s.location.lon],3);
+  }
+
+  updateProgress();
+  updateTimeline();
+  scrollToSlide(i);
+}
+
+// ===================== SCROLL TO SLIDE =====================
+function scrollToSlide(i){
+  const el=document.querySelector(`.slide[data-index="${i}"]`);
+  if(el){
+    el.scrollIntoView({behavior:"smooth",block:"center"});
+  }
+}
+
+// ===================== PROGRESS =====================
+function updateProgress(){
+  const p=(current/(slides.length-1))*100;
+  document.getElementById("progress").style.width=p+"%";
+}
+
+// ===================== SCROLL SYNC =====================
+function enableScrollSync(){
+  const container=document.getElementById("slides");
+  container.addEventListener("scroll",()=>{
+    if(MODE!=="story" || PLAY) return;
+    const els=[...document.querySelectorAll(".slide")];
+    let best=0,min=Infinity;
+    els.forEach((el,i)=>{
+      const r=el.getBoundingClientRect();
+      const d=Math.abs(r.top-200);
+      if(d<min){min=d;best=i;}
+    });
+    if(best!==current) goSlide(best,false);
+  });
+}
+
+// ===================== MANUAL MAP CONTROL =====================
+document.addEventListener("keydown",e=>keys[e.key]=true);
+document.addEventListener("keyup",e=>keys[e.key]=false);
+
+function manualLoop(){
+  if(MODE==="manual"){
+    let speed=0.0009;
+    if(keys["Shift"]) speed*=3;
+
+    let center=map.getCenter();
+
+    if(keys["w"] || (MODE==="manual" && keys["ArrowUp"])) center.lat+=speed*map.getZoom();
+    if(keys["s"] || (MODE==="manual" && keys["ArrowDown"])) center.lat-=speed*map.getZoom();
+    if(keys["a"] || keys["ArrowLeft"]) center.lng-=speed*map.getZoom();
+    if(keys["d"] || keys["ArrowRight"]) center.lng+=speed*map.getZoom();
+
+    map.panTo(center,{animate:false});
+  }
+  requestAnimationFrame(manualLoop);
+}
+manualLoop();
+
+// ===================== SLIDE NAVIGATION KEYS =====================
+document.addEventListener("keydown",e=>{
+  if(["INPUT","TEXTAREA"].includes(document.activeElement.tagName)) return;
+
+  if(e.key==="ArrowRight" || e.key==="PageDown"){
+    goSlide(current+1,true);
+    e.preventDefault();
+  }
+  if(e.key==="ArrowLeft" || e.key==="PageUp"){
+    goSlide(current-1,true);
+    e.preventDefault();
+  }
+  if(e.key==="Home"){
+    goSlide(0,true);
+  }
+  if(e.key==="End"){
+    goSlide(slides.length-1,true);
+  }
+  if(e.key===" "){
+    togglePlay();
+  }
+});
+
+// ===================== MODES =====================
+function setMode(m){
+  MODE=m;
+  document.querySelectorAll(".btn").forEach(b=>b.classList.remove("active"));
+  if(m==="story") document.getElementById("modeStory").classList.add("active");
+  if(m==="free") document.getElementById("modeFree").classList.add("active");
+  if(m==="manual") document.getElementById("modeManual").classList.add("active");
+}
+
+document.getElementById("modeStory").onclick=()=>setMode("story");
+document.getElementById("modeFree").onclick=()=>setMode("free");
+document.getElementById("modeManual").onclick=()=>setMode("manual");
+
+// ===================== PLAY MODE (CINEMATIC) =====================
+let playTimer=null;
+function togglePlay(){
+  PLAY=!PLAY;
+  document.getElementById("modePlay").classList.toggle("active",PLAY);
+  if(PLAY){
+    playTimer=setInterval(()=>{
+      if(current<slides.length-1){
+        goSlide(current+1,false);
+      }else{
+        togglePlay();
+      }
+    },3500);
+  }else{
+    clearInterval(playTimer);
+  }
+}
+document.getElementById("modePlay").onclick=togglePlay;
+
+</script>
+</body>
+</html>
